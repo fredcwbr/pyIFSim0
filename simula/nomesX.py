@@ -23,62 +23,95 @@ class Nomes:
         with open("bairros.csv", "r") as xnome:
             self.__class__.BRs = xnome.readlines()
 
+        self.nxtProps()
+
+
     @classmethod
-    def Pessoa(self):
+    def xPessoa(self):
         while(1):        
             yield self.PN[random.randrange(0,len(self.PN))].strip()+" "+self.SN[random.randrange(0,len(self.SN))].strip()
 
     @classmethod
-    def prenome(self):
+    def Pessoa(cls):
+        return next(cls.iPessoa)
+
+    @classmethod
+    def xPrenome(self):
         while(1):        
             yield self.PN[random.randrange(0,len(self.PN))].strip()
+
+    @classmethod
+    def Prenome(self):
+        return next(self.iPrenome)
             
     @classmethod
-    def sobrenome(self):
+    def xSobrenome(self):
         while(1):
             yield self.SN[random.randrange(0,len(self.SN))].strip()
 
     @classmethod
-    def Cidades(self):
+    def Sobrenome(self):
+        return next(self.iSobrenome)
+    
+    @classmethod
+    def xCidades(self):
         while(1):
             cd = random.randrange(0,len(self.CDs))
             yield (cd, self.CDs[cd].strip() )
             
     @classmethod
-    def novaCidade(self):
-        return next(self.Cidades())
+    def NovaCidade(self):
+        return next(self.iCidades)
 
     @classmethod
-    def getNovoCdCidades(self):
+    def xGetNovoCdCidades(self):
         while(1):
             yield random.randrange(0,len(self.CDs))
 
     @property
-    def nomeCidade(self,cdCidade):
+    def NomeCidade(self,cdCidade):
         return self.__class__.CDs[cdCidade]
 
 
     @classmethod
-    def Bairros(self):
+    def xBairros(self):
         while(1):
             cd = random.randrange(0,len(self.BRs))
             yield (cd, self.BRs[cd].strip() )
 
     @classmethod
-    def novoBairro(self):
-        return next(self.Bairros())
+    def Bairros(self):
+        return next(self.iBairros)
 
     @classmethod
-    def getNovoCdBairro(self):
+    def NovoBairro(self):
+        return self.Bairros()
+
+    @classmethod
+    def xgetNovoCdBairro(self):
         while(1):
             yield random.randrange(0,len(self.BRs))
 
+    @classmethod
+    def getNovoCdBairro(self):
+        return next(self.igetNovoCdBairro())
+
     @property
-    def nomeBairro(self,cdBR):
+    def NomeBairro(self,cdBR):
         return self.__class__.BRs[cdBR]
 
 
 
 
+
+    @classmethod
+    def nxtProps(cls):
+        cls.iPessoa = cls.xPessoa()
+        cls.iPrenome = cls.xPrenome()
+        cls.iSobrenome = cls.xSobrenome()
+        cls.iCidades = cls.xCidades()
+        cls.iBairros = cls.xBairros()
+        cls.igetNovoCdBairro = cls.xgetNovoCdBairro()
+   
 
 

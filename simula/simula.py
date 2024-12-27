@@ -34,6 +34,28 @@ class eDIRECAO(Enum):
     def  __str__(self):
         return __strsX__[self] 
 
+class cPosicaoXY:
+    def __init__(self, *args):
+        if len(args) < 2 :
+            self.xlen = random.randrange(0,10)
+            self.ylen = random.randrange(0,10)
+        else:
+            (xlen, ylen) = args
+            self.xlen = xlen
+            self.ylen = ylen
+
+    @property        
+    def get(self):
+        return (self.xlen, self.ylen)
+        
+    def distancia(self, x,y):
+        # Retorna a distancia polar equivalente entre os pontos A,B 
+        return sqr( (self.xlen - x)**2 + (self.ylen - y)**2 )
+
+    def __str__(self):
+        return '{} : {}'.format(self.xlen, self.ylen)
+    
+
 
 class eBOTAO(Enum):
     DESLIGADO = 0,
@@ -68,51 +90,37 @@ class BOTAO:
         return "estado: {} ".format( str(self.__estado__) )
 
 
-class cPosicao:
+ 
 
-    def __init__(  self, x = 0 , y = 0 , cdCidade = 0, cdBairro = 0 , nivel = 0 ):
+class cIdentidade(cPosicaoXY):
+    
+    def __init__( self, nome, tipo, posicao=0, cdCidade = 0, cdBairro = 0 , nivel = 0 ):
+        if posicao is type(None):
+            posicao = ( random.randrange(0,40),random.randrange(0,40) )
+        super().__init__( posicao )
+        self.nome = nome
+        self.tipo = tipo
         self.cdCidade = cdCidade
         self.cdBairro = cdBairro
-        self.x = x
-        self.y = y
         self.nivel = nivel
-    
-    #@property
-    #def cdCidade(self):
-    #     # Este código é executado quando alguém for
-    #     # ler o valor de self.nome
-    #     return self._cdCidade
-
-    ##    @cdCidade.setter
-    ##    def cdCidade(self, value):
-    ##         # este código é executado sempre que alguém fizer 
-    ##         # self.nome = value
-    ##         self._cdCidade = value
-        
-    def distancia(self, x,y):
-        # Retorna a distancia polar equivalente entre os pontos A,B 
-        return sqr( (self.x - x)**2 + (self.y - y)**2 )
-
+     
     def  __str__(self):
-        return "cdCidade : {}; cdBairro {}; x {} , y {} , nv {}".format(
+        return "Identidade: cdCidade : {}; cdBairro {}; xy {} , nv {}".format(
                 self.cdCidade,
                 self.cdBairro,
-                self.x,
-                self.y,
+                self.get,
                 self.nivel
              )
 
+    def getCdCidade(self):
+        return self.cdCidade
 
-class cIdentidade(cPosicao):
+    def getCdBairro(self):
+        return self.cdBairro
     
-    def __init__( self, nome, tipo, x = 0 , y = 0 , cdCidade = 0, cdBairro = 0 , nivel = 0 ):
-        super().__init__( x , y , cdCidade , cdBairro , nivel  )
-        self.nome = nome
-        self.tipo = tipo
+    def getNivel(self):
+        return self.nivel
      
-    def  __str__(self):
-        return "Identidade: {}::{} :: {}".format( self.tipo, self.nome, super().__str__() )
-
 
 
 class cDestino( cIdentidade ) :
@@ -133,8 +141,8 @@ class cDestino( cIdentidade ) :
 class cPessoa( cIdentidade ):
 
 
-    def __init__( self, nome, dfltCasa , dfltDest ):
-        super().__init__( nome , eTIPOS.PESSOA )
+    def __init__( self, nome, dfltCasa , dfltDest ,**kwargs ):
+        super().__init__( nome , eTIPOS.PESSOA ,**kwargs )
         self.predioCasa = dfltCasa
         self.predioDestino = dfltDest
         self.emTransito = False
@@ -260,21 +268,22 @@ class cPredio( cDestino ):
         self.elevadores =  list( cElevador( N , andares ) for N in range(nElevadores) )
 
 
-        logging.info( "{} Elevadores >> \n".format( super().__str__() ) )
-        for C in self.elevadores:
-            logging.info( C )
+        # logging.info( "{} Elevadores >> \n".format( super().__str__() ) )
+        #for C in self.elevadores:
+        #    logging.info( C )
         
 
 class cBairro(cDestino):
 
-    def __init__(self):
-        (self.cdBairro, self.nomeBairro) = Nomes.novoBairro()
+    def __init__(self, cdCidade):
+        (cdBairro, nomeBairro) = Nomes.NovoBairro()
+        super().__init__( nomeBairro, eTIPOS.BAIRRO, cPosicaoXY(), cdCidade=cdCidade, cdBairro=cdBairro  )
         self.Predios = []
         
 
     def novoPredio(self, andares = 6):
         elev = (andares % 4) + 2
-        self.Predios.append( cPredio( Nomes.prenome , eTIPOS.PREDIO , andares,  x = 0 , y = 0 , cdCidade = 0, cdBairro = 0 , nivel = 0 , 
+        self.Predios.append( cPredio( Nomes.Prenome() , eTIPOS.PREDIO , andares, cdCidade = 0, cdBairro = 0 , nivel = 0 , 
                                       nElevadores = elev) )
     
     def incluiPredio(self, predio):
@@ -288,24 +297,26 @@ if __name__ == "__main__":
                         datefmt="%H:%M:%S")
 
     pessoasX = []
+    P = Cadastros.Pessoa()
     # Gera mundo virtual .,
     NBAIRROSX = 4
+    (cdCidade, nmCidade) = Nomes.NovaCidade()
+    logging.info("Cidade {} :: {}".format(cdCidade,nmCidade) )
     #
-    bairros = [  cBairro() for N in range( NBAIRROSX )  ]
+    bairros = [  cBairro(cdCidade) for N in range( NBAIRROSX )  ]
     for B in bairros:
         for P in range ( random.randrange( 3, 10 ) ):
-            B.novoPredio()
-                        
+             B.novoPredio()
+    
+        for px in range( 1, 20 ):
+            s =  cPessoa(P, cDestino("casa",eTIPOS.CASA) , cDestino("casa",eTIPOS.CASA), cdCidade=cdCidade )
+            pessoasX.append( cPessoa(P, cDestino("casa",eTIPOS.CASA) , cDestino("casa",eTIPOS.CASA) , cdBairro=B.cdBairro, cdCidade=cdCidade )  )
+
+        logging.info( "Pessoas: {} :: {}".format( len(pessoasX) , [ str(P) for P in pessoasX ] ) )
+                    
     
     for px in range(1,10):
         bairros[random.randrange(0,len(bairros))].incluiPredio( cPredio( "Predio {}".format(px) , eTIPOS.PREDIO , int(random.random() * 10) ) ) 
 
-    CP = Cadastros.Pessoa()
-    for px in range( 1, 20 ):
-        P = next(CP) 
-        s =  cPessoa(P, cDestino("casa",eTIPOS.CASA) , cDestino("casa",eTIPOS.CASA) )
-        pessoasX.append( cPessoa(P, cDestino("casa",eTIPOS.CASA) , cDestino("casa",eTIPOS.CASA) )  )
-
-    logging.info( "Pessoas: {} :: {}".format( len(pessoasX) , [ str(P) for P in pessoasX ] ) )
-
+    
     
