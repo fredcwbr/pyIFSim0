@@ -13,6 +13,16 @@ from  nomesX import Nomes
 
 Cadastros = Nomes()
 
+class eTIPOS(Enum):
+    CIDADE = 0,
+    BAIRRO = 1,
+    PREDIO = 2,
+    ANDAR  = 3,
+    PRACA  = 4,
+    RUA    = 5,
+    PESSOA = 6,
+    CASA   = 7,
+    REMOTO = 999
 
 class eDIRECAO(Enum):
     PARADO = 0,
@@ -95,12 +105,13 @@ class cPosicao:
 
 class cIdentidade(cPosicao):
     
-    def __init__( self, nome, x = 0 , y = 0 , cdCidade = 0, cdBairro = 0 , nivel = 0 ):
-        super().__init__( x = 0 , y = 0 , cdCidade = 0, cdBairro = 0 , nivel = 0 )
+    def __init__( self, nome, tipo, x = 0 , y = 0 , cdCidade = 0, cdBairro = 0 , nivel = 0 ):
+        super().__init__( x , y , cdCidade , cdBairro , nivel  )
         self.nome = nome
+        self.tipo = tipo
      
     def  __str__(self):
-        return "nome: {} :: {}".format( self.nome, super().__str__() )
+        return "Identidade: {}::{} :: {}".format( self.tipo, self.nome, super().__str__() )
 
 
 
@@ -110,7 +121,8 @@ class cDestino( cIdentidade ) :
         super().__init__(*args, **kwargs)
         self.tempoInterTransito = 0
         self.penalidadeTransitoNivel = 0
-        self.penalidadeTransitoBairro = 0
+        self.penalidadeTransitoExtraBairro = 0
+        self.penalidadeTransitoIntraBairro = 0
         self.penalidadeTransitoCidade = 0
         self.posicaoGeo   = 0
 
@@ -122,7 +134,7 @@ class cPessoa( cIdentidade ):
 
 
     def __init__( self, nome, dfltCasa , dfltDest ):
-        super().__init__( nome )
+        super().__init__( nome , eTIPOS.PESSOA )
         self.predioCasa = dfltCasa
         self.predioDestino = dfltDest
         self.emTransito = False
@@ -239,8 +251,9 @@ class cAndar:
 
 class cPredio( cDestino ):
  
-    def __init__( self, destino, andares, nElevadores = 5 ):
-        super().__init__( destino )
+    def __init__( self, *args, nElevadores = 5 , **kwargs):
+        (nome, tipo, andares) = args 
+        super().__init__( nome, tipo, **kwargs )
         # inicializa o predio com seus andares,
         #
         self.niveis = cAndar( andares )
@@ -252,22 +265,20 @@ class cPredio( cDestino ):
             logging.info( C )
         
 
-class cBairro():
+class cBairro(cDestino):
 
     def __init__(self):
-        (self.cdBairro, self.nomeBairro) = Nomes.Bairro()
+        (self.cdBairro, self.nomeBairro) = Nomes.novoBairro()
         self.Predios = []
         
 
-    def novoPredio(self, destino, andares ):
-        destino.cdBairro = self.cdBairro
-        destino.nivel = andares
+    def novoPredio(self, andares = 6):
         elev = (andares % 4) + 2
-        self.Predios.append( cPredio( destino, andares,  nElevadores = elev)
-        
-
+        self.Predios.append( cPredio( Nomes.prenome , eTIPOS.PREDIO , andares,  x = 0 , y = 0 , cdCidade = 0, cdBairro = 0 , nivel = 0 , 
+                                      nElevadores = elev) )
+    
     def incluiPredio(self, predio):
-        self.Predios.append(predio)
+        self.Predios.append(predio )
         
 
 
@@ -277,18 +288,24 @@ if __name__ == "__main__":
                         datefmt="%H:%M:%S")
 
     pessoasX = []
-    bairro = cBairro()
-
+    # Gera mundo virtual .,
+    NBAIRROSX = 4
+    #
+    bairros = [  cBairro() for N in range( NBAIRROSX )  ]
+    for B in bairros:
+        for P in range ( random.randrange( 3, 10 ) ):
+            B.novoPredio()
+                        
     
     for px in range(1,10):
-        bairro.incluiPredio( cPredio( cDestino("Predio {}".format(px) ) , int(random.random() * 10) ) )
+        bairros[random.randrange(0,len(bairros))].incluiPredio( cPredio( "Predio {}".format(px) , eTIPOS.PREDIO , int(random.random() * 10) ) ) 
 
     CP = Cadastros.Pessoa()
     for px in range( 1, 20 ):
         P = next(CP) 
-        s =  cPessoa(P, cDestino("casa") , cDestino("casa") )
-        pessoasX.append( cPessoa(P, cDestino("casa") , cDestino("casa") )  )
+        s =  cPessoa(P, cDestino("casa",eTIPOS.CASA) , cDestino("casa",eTIPOS.CASA) )
+        pessoasX.append( cPessoa(P, cDestino("casa",eTIPOS.CASA) , cDestino("casa",eTIPOS.CASA) )  )
 
-    logging.info( "Pessoas: {} :: {}".format( len(pessoasX) , [ str(P) for P in pessoasX ] )
+    logging.info( "Pessoas: {} :: {}".format( len(pessoasX) , [ str(P) for P in pessoasX ] ) )
 
     

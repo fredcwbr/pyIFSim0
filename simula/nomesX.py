@@ -43,9 +43,13 @@ class Nomes:
         while(1):
             cd = random.randrange(0,len(self.CDs))
             yield (cd, self.CDs[cd].strip() )
+            
+    @classmethod
+    def novaCidade(self):
+        return next(self.Cidades())
 
     @classmethod
-    def getCdCidades(self):
+    def getNovoCdCidades(self):
         while(1):
             yield random.randrange(0,len(self.CDs))
 
@@ -55,13 +59,17 @@ class Nomes:
 
 
     @classmethod
-    def Bairro(self):
+    def Bairros(self):
         while(1):
             cd = random.randrange(0,len(self.BRs))
             yield (cd, self.BRs[cd].strip() )
 
     @classmethod
-    def getCdBairro(self):
+    def novoBairro(self):
+        return next(self.Bairros())
+
+    @classmethod
+    def getNovoCdBairro(self):
         while(1):
             yield random.randrange(0,len(self.BRs))
 
