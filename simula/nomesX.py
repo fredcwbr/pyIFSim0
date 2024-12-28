@@ -1,6 +1,14 @@
 
-
 import random
+
+class uSeq:
+    sqIni = 1
+    
+    @classmethod
+    def nxtX(cls):
+        cls.sqIni = cls.sqIni + 1
+        return cls.sqIni
+
 
 class Nomes:
     PN = []
@@ -28,12 +36,13 @@ class Nomes:
 
     @classmethod
     def xPessoa(self):
-        while(1):        
-            yield self.PN[random.randrange(0,len(self.PN))].strip()+" "+self.SN[random.randrange(0,len(self.SN))].strip()
+        while(1):
+            p = self.PN[random.randrange(0,len(self.PN))].strip()+" "+self.SN[random.randrange(0,len(self.SN))].strip()
+            yield ( hash( p+str(uSeq.nxtX())) ,  p )
 
     @classmethod
     def Pessoa(cls):
-        return next(cls.iPessoa)
+        return  next(cls.iPessoa)
 
     @classmethod
     def xPrenome(self):
