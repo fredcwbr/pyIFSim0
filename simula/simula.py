@@ -17,8 +17,8 @@ TMOVIMENTOELEVADOR = 4.0
 # Intervalo de tempo entre a saida do elevador e a ocupacao .,
 TMOVIMENTOENTRAANDAR = 3.0
 # Tempo que PESSOA fica em algum lugar.,
-TMINTRABALHO = 5
-TMAXTRABALHO = 40
+TMINTRABALHO = 1
+TMAXTRABALHO = 10
 
 # Numero maximo de pessoas no elevador
 CAPACIDADE_ELEVADOR = 12
@@ -148,6 +148,12 @@ class cDestino( cIdentidade ) :
         self.penalidadeTransitoCidade = 0
         self.posicaoGeo   = 0
 
+    def chegou(self, Trgt ):
+        return  self.cdCidade == Trgt.cdCidade and
+                self.cdBairro == Trgt.cdBairro and
+                self.cdPredio == Trgt.cdPredio and
+                self.nivel    == Trgt.nivel
+
     def  __str__(self):
         return "{} :: {}\n".format( self.nome, super().__str__()  )
 
@@ -164,7 +170,9 @@ class cPessoa( cIdentidade ):
         logging.debug("Iniciando pessoa {}".format(nome))
 
     def vouSair( self ):
-        self.lugar
+        self.meuDestino = proximoDestino()
+        logging.info("{} Vou sair para {}".format(self, self.meuDestino ) )
+        self.lugar.sair(self)
 
     def programaSaida(self, lugar):
         # Entrei em algum lugar,
@@ -173,6 +181,7 @@ class cPessoa( cIdentidade ):
         self.lugar = lugar
         # Tempo que fico aqui.,
         TTrabalho = random.randrange( TMINTRABALHO, TMAXTRABALHO )
+        logging.info("{} Cheguei onde queria, fico aqui por {} tempo".format(self,TTrabalho) )
         self.tMovimento = threading.Timer( TTrabalho , self.vouSair ).start()        
 
     @property
@@ -225,11 +234,10 @@ class cElevador():
         self.dirAnterior = self.PARADO
         self.estado = self.PARADO
         self.nivel = 0
-        # pessoas neste elevador
-        self.filaNoElevador = Queue(maxsize=capElev)
-        # filas de pessoas nos andares
         self.predio = predio
         self.numeroDoElevador = numero
+        # pessoas neste elevador
+        self.filaNoElevador = [ Queue(maxsize=capElev) for N in range(0,len(self.predio.niveis)) ]
         #cBotao
         self.noPainelIndicador = [ BOTAO() for B in range(len(predio.niveis) ) ]
         #
@@ -239,32 +247,41 @@ class cElevador():
 
     def run(self):
         while True:
-            logging.info("cElevador .. run  .. ")
+            logging.debug("cElevador .. run  .. ")
             time.sleep( TMOVIMENTOELEVADOR )
             self.movimento()
 
     def descarrega(self):
         # Se houverem pessoas para esse andar, .
         while( True ):
+            logging.info("Descarregando")
             try:
-                self.noPainelIndicador[self.nivel].desativa()
-                P = self.filaNoElevador.get() 
-                predio.nivel[self.nivel].filaEntrando.put( P, block=False )
+                self.noPainelIndicador[self.nivel].desativar()
+                #  **** TODO ****
+                #  Tratar a fila dentro do elevador , por andar.,
+                #
+                P = self.filaNoElevador[self.nivel].get(block=False) 
+                self.predio.niveis[self.nivel].entra( P )
+                logging.info("Entrou {} no andar {}".format(P,self.nivel) )
             except Full:
                 logging.info("Andar {} esta lotado, incapaz de deixar gente",self.nivel)
                 # Devolve o sujeito para o elevador.,
-                self.filaNoElevador.put_nowait(P)
+                self.filaNoElevador[self.nivel].put_nowait(P)
                 break
             except Empty:
                 # Acabaram-se os individuos a sair
+                logging.info("Elevador descarregou todos deste andar")
                 break
 
     def carrega(self):
         # Se houverem pessoas para sair desse andar, .
         while( True ):
+            logging.info("Carregando")
             try:                
-                P = self.predio.nivel[self.nivel].filaSaindo.get()
-                P = self.filaNoElevador.put( P, block=False ) 
+                P = self.predio.niveis[self.nivel].filaSaindo.get(block=False)
+                self.filaNoElevador[P.meuDestino].put( P, block=False )
+                self.noPainelIndicador[P.meuDestino].ativar()
+                logging.info("Entrou {} no elevador {} no andar {}".format(P,self.numeroDoElevador,self.nivel) )
             except Full:
                 logging.info("Elevador {} no andar {} esta lotado, incapaz de carregar mais gente",self.numeroDoElevador, self.nivel)
                 # Devolve o sujeito para o andar. nao tem como entrar no elevador.,
@@ -272,9 +289,10 @@ class cElevador():
                 break
             except Empty:
                 # Acabaram-se os individuos do andar
+                logging.info("Nao tem mais gente para movimentar")
                 break
-        if self.predio.nivel[self.nivel].filaSaindo.empty():
-           self.predio.nivel[self.nivel].chamando = False 
+        if self.predio.niveis[self.nivel].filaSaindo.empty():
+           self.predio.niveis[self.nivel].chamando = False 
        
     def PARADO(self):
         # Carrega pessoas da fila desse nivel
@@ -286,11 +304,9 @@ class cElevador():
         # Altera o nivel no evento
         self.nivel = self.nivel + 1
         # e verifica se precisa alterar o estado
-        if self.noPainelIndicador[self.nivel].ligado or self.predio.nivel[self.nivel].ligado:
+        if self.noPainelIndicador[self.nivel].ligado or self.predio.niveis[self.nivel].ligado:
                self.estado = self.SAINDOENTRANDO
-        elif self.dirAnterior == self.SUBINDO and self.nivel < len(self.predio.nivel):
-                self.estado = self.SUBINDO
-        else:
+        elif self.nivel < len(self.predio.niveis)-1:
             self.estado = self.DESCENDO
         
     def DESCENDO(self):
@@ -298,26 +314,46 @@ class cElevador():
         # e verifica se precisa alterar o estado 
         self.nivel = self.nivel - 1
         # e verifica se precisa alterar o estado
-        if self.noPainelIndicador[self.nivel].ligado or self.predio.nivel[self.nivel].chamando:
+        if self.noPainelIndicador[self.nivel].ligado or self.predio.niveis[self.nivel].ligado:
                self.estado = self.SAINDOENTRANDO
         elif self.dirAnterior == self.DESCENDO:
-            if self.nivel > 0:
-                self.estado = self.DESCENDO
-            elif self.predio.alguemChamando() :
-                self.estado = self.SUBINDO
-            else:
-                self.estado = self.PARADO
-        else:
-            self.dirAnterior == self.SUBINDO
-            self.estado = self.SUBINDO
+            if self.nivel <= 0:
+                self.estado = self.SAINDOENTRANDO
         
     def SAINDOENTRANDO(self):
         # Descarrega pessoas desse elevador nesse nivel,
         # e carrega pessoas da fila desse nivel ate o limite do elevador
         self.descarrega()
         self.carrega()
-        self.estado = self.dirAnterior
+        self.estado = self.subiroudescer()
 
+    def subiroudescer(self):
+        # Verifica a proxima direcao deste elevador.,
+        # Se estava parado no 0 --> subir
+        # No topo --> descer
+        # Em qualqer outro lugar, verifica qual o maior numero de pessoas para o destino,
+        # e comeca por la.,
+        # e se nao tiver ninguem., fica para
+        #
+        if self.nivel == 0:
+            X = self.SUBINDO
+        elif self.nivel == len(self.predio.niveis)-1:
+            X = self.DESCENDO
+        else:
+            cnt = 0
+            for N in self.filaNoElevador:
+                if N.qsize > cnt:
+                    cnt = N.qsize
+            if cnt == 0:
+                # o elevador esta vazio
+                X = self.PARADO
+            elif cnt > self.nivel:
+                # mais gente para subir
+                X = self.SUBINDO
+            else:
+                X = self.DESCENDO
+        return X
+    
     def movimento(self):
         # Executa este FSM
         logging.info("Executando movimento {}".format(self) )
@@ -357,8 +393,26 @@ class cAndar():
         
 
     def entra(self,P):
-        self.filaEntrando.put( P )
-        logging.info("andar Entrando {} para nivel {} , Fila {}".format(P,P.meuDestino,self.filaEntrando.qsize() ) ) 
+        if  P.meuDestino == self.nivel:
+            logging.info("{} Entrando no nivel destino {}".format(P, self.nivel) )
+            self.filaEntrando.put( P )
+        else:
+            logging.info("{} Aguardando saida para destino {}".format(P, P.meuDestino,self.filaSaindo.qsize() ) )
+            self.filaSaindo.put( P )
+            if P.meuDestino > self.nivel:
+                self.subir.ativar()
+            else:
+                self.descer.ativar()
+        logging.info("{} Entrando no andar {} para nivel {} , FIn {} ; FOut {}; UP{} , DW{}".format(
+                P,
+                self.nivel,
+                P.meuDestino,
+                self.filaEntrando.qsize(),
+                self.filaSaindo.qsize(),
+                self.subir.ligado,
+                self.descer.ligado
+                )
+            ) 
         
 
     @property
@@ -367,15 +421,19 @@ class cAndar():
 
     def run(self):
         while True:
-            logging.info("cAndar .. run  .. ")
+            logging.debug("cAndar .. run  .. ")
             time.sleep( TMOVIMENTOENTRAANDAR )
             self.movimento()
 
-    def sair(self,p_id):
+    def sair(self,P):
+        logging.info("indo para o elevador")
         with self._lock:
-            P = self.noAndarOcupado.pop(p_id)
-        
-        self.filaSaindo.put(P)        
+            P = self.noAndarOcupado.pop(P.p_id)
+        self.filaSaindo.put(P)
+        if P.meuDestino > self.nivel:
+            self.subir.ativar()
+        else:
+            self.descer.ativar()
             
     def movimento(self):
         # Pega as pessoas que entraram , e da o que fazer,
@@ -383,7 +441,14 @@ class cAndar():
         # passa a funcao de saida para a pessoa poder ir embora
         # quando quiser.,
         #
-        logging.info("Movimento no Andar {} , qsize {}".format(self.nivel, self.filaEntrando.qsize() ) )
+        logging.info("Movimento no Andar {} , Ocp {}, qIn {}, qOut {}, UP {}, DW {}".format(
+                self.nivel,
+                len(self.noAndarOcupado),
+                self.filaEntrando.qsize(),
+                self.filaSaindo.qsize(),
+                self.subir.ligado,
+                self.descer.ligado
+            ) )
         try:
             P = self.filaEntrando.get(block=False)
             if P.meuDestino == self.nivel:
@@ -391,22 +456,12 @@ class cAndar():
                 if P.meuDestino == 0:
                    # **** TODO **** ...
                    #  Trocar de predio ...
-                   #
                    pass
-                else:
-                    # cheguei onde queria.,
-                    with self._lock:
-                        self.noAndarOcupado[P.p_id] = P
-                    # vou embora daqui a pouco ., 
-                    P.programaSaida( self )
-            else:
-                # pegar um elevador
-                logging.info("Pegando elevador ")
-                self.filaSaindo.put(P)
-                if P.meuDestino > self.nivel:
-                    self.subir.ativar()
-                else:
-                    self.descer.ativar()
+                # cheguei onde queria.,
+                with self._lock:
+                    self.noAndarOcupado[P.p_id] = P
+                # vou embora daqui a pouco ., 
+                P.programaSaida( self )
                 
         except Empty:
             #
@@ -420,11 +475,13 @@ class cPredio( cDestino ):
     def __init__( self, *args, nElevadores = 1 , Teste=False , **kwargs):
         (nome, tipo, andares) = args 
         super().__init__( nome, tipo, **kwargs )
+        self.aguardaElevador = []
+        self._lock = threading.Lock()
         # inicializa o predio com seus andares,
         #
         if not Teste:
-            self.niveis = [ cAndar(A) for A in range( andares ) ]
             self.elevadores =  [ cElevador( N , self ) for N in range(nElevadores) ]
+            self.niveis = [ cAndar(A, self.elevadores ) for A in range( andares ) ]
 
         # logging.info( "{} Elevadores >> \n".format( super().__str__() ) )
         #for C in self.elevadores:
@@ -433,6 +490,7 @@ class cPredio( cDestino ):
     def entra(self,P):
             logging.info("predio Entrando {} para nivel {}".format(P,P.meuDestino) ) 
             self.niveis[0].entra( P )        
+
 
 class cBairro(cDestino):
 
