@@ -1,5 +1,6 @@
 import tkinter as tk
 import random
+import logging
 import os
 import sys
 import time
@@ -10,82 +11,100 @@ from threading import Thread
 
 
 
-class tk_pessoa():
-    pass
 
-class tk_andar():
-    pass
+class tk_btx():
+    # Uma coluna de elevadores
+    # com tratamento adequado de mensagens para que apenas 1
+    # esteja com Valor
+    #
+    def __init__(self,idElevador,coluna,andares=1,parent=None,*args,**kwargs):
+        self.andares = andares
+        self.idElevador = idElevador
+        self.parent = parent
+        self.mainWin = parent
+        self.linha = [ None for A in range(self.andares) ]
+        self.botao = None
+        self.coluna = coluna
+        self.fila = kwargs.get('fila',queue.Queue())
 
+    def novoBotao(self, andar, *args, mainWin=None, parent=None, **kwargs):
+        # Devolve um novo botao tkButton apropriado
+        # computando o andar de acordo com a solicitacao
+        # prms = {k:v for k,v in kwargs.items() if k not in ['andar','andares','elevador']  }
+        if mainWin is not None:
+            self.mainWin = mainWin
+        if parent is None:
+           parent = self.parent
+        self.botao = tk.Button( parent, *args, **kwargs )
+        self.linha[andar] = self.botao
+        
+        return self.botao
 
-class tk_btx(tk.Button):
-    
-    def __init__(self,parent,*args,**kwargs):
-        prms = {k:v for k,v in kwargs.items() if k not in ['andar','elevador']  }
-        super().__init__(parent,*args, command=self.mostra, **prms)
-        self.idx = random.randrange(25663)
-        self.text = self.idx
-        self.andar = kwargs['andar']
-        self.elevador = kwargs['elevador']
+    def noAndar(self,andar,MSG):
+        # tratar a mensagem no andar certo,
+        #
+        for B in range(len(self.linha)):
+            if self.linha[B] is None:
+                continue
+            self.fila.put( ( self.linha[B] , MSG if B == andar else "" ) )
 
-    def mostra(self):
-        print("self.idx :{}".format(self.idx) )
+        logging.debug( "Enviados: {} msgs".format( self.fila.qsize() ) )
+        self.mainWin.event_generate('<<atuElevador>>')
+        
         
 
 class tk_predio(tk.Frame):
-    def __init__(self,parent, elevadores,andares,*args,**kwargs):
+    def __init__(self,parent, nElevadores, andares,*args,**kwargs):
         super().__init__(parent)
         #
-        self.slot =  [  [ [] for B in range(andares) ] for A in range(elevadores) ]
-        self.elevadores = elevadores
+        self.fila = kwargs.get('fila',queue.Queue())
+        self.andares = andares
+        self.elevadores = [ tk_btx( random.randrange(2545357),
+                               N,
+                               andares=andares,
+                               parent=parent,
+                               fila=self.fila
+                            ) for  N in range(nElevadores) ]
         #
         l_inicial = 3
         l0 = tk.Label( parent ,
                        text = kwargs.get("NomePredio", "Predio :: XYZ" )
                     )
-        l0.grid( row=0, column=0, columnspan= elevadores )
-                       
-        for E in range(elevadores):
+        l0.grid( row=0, column=0, columnspan= nElevadores )
+        
+        # Monta o painel de visualizacao                        
+        for E in self.elevadores:
             for A in range(andares):
                 L = tk.Label( parent,
                               text = "Andar {}".format(A) if A > 0 else "Saguao"
                             )
-                X = tk_btx(parent,
-                           height=1,
-                           width=5,
-                           relief=tk.SUNKEN,
-                           bg = 'gray92' if E % 2 == 0 else 'gray90',
-                           pady=2,
-                           padx=2,
-                           andar = A,
-                           elevador = E
-                    )
+                # Botoes para representacao 
+                X = E.novoBotao(A,
+                                height=1,
+                                width=5,
+                                relief=tk.SUNKEN,
+                                pady=2,
+                                padx=2,
+                                bg = 'gray92' if E.coluna % 2 == 0 else 'gray90'
+                        )
                 L.grid(row=l_inicial+andares-A,column=0,pady=3)
-                X.grid(row=l_inicial+andares-A,column=E+1,pady=2)
-                self.slot[E][A].append( X )
-        print( self.slot )
+                X.grid(row=l_inicial+andares-A,column=E.coluna+1,pady=2)
+
 
         
-    def exercitaElevador(self,mainWin, fila):
-        self.fila = fila
-        self.mainWin = mainWin
+    def exercitaElevador(self):
         #
         while( True ):
             # Para cada Elevador,
-            for N in range( len(self.slot) ):
-                Mx = random.randrange( len(self.slot[ N ]) )
+            for N in self.elevadores:
+                Mx = random.randrange(self.andares)
                 # Indicadores do painel
-                for MN in range(len(self.slot[ N ])):
-                    for E in self.slot[ N ][MN]:
-                        # Atualiza o elevador neste momento., 
-                        # Cria uma thread para esse exercicio
-                        MSG =  " " if MN != Mx else "Mx"
-                        self.fila.put( ( E , MSG ) )
-                print( "Enviados: {} msgs".format(self.fila.qsize() ) )
-                self.mainWin.event_generate('<<atuElevador>>')
+                N.noAndar( Mx , "M??xx" )
                 time.sleep(1)
             # Espera ate a proxima interacao ,
             # << Atualiza o estado do painel monitor.
             time.sleep(1)
+
             
 def processaElevador(mqueue , evento):
     # ** Levar em consideracao que
@@ -104,28 +123,31 @@ def processaElevador(mqueue , evento):
 
 
 class interfacePredio:
-    def __init__( self, mqElevador, elevadores, andares ):
+    def __init__( self, elevadores, andares ):
         self.window = tk.Tk()
         pnl1 = tk.Frame(self.window)
         pnl1.grid(row=1,column=2,padx=2,pady=2)
-        P = tk_predio(pnl1, elevadores ,andares)
+        P = tk_predio(pnl1, elevadores ,andares, mainWin=self.window)
         P.grid(row=1,column=3,pady=2,padx=2)
         # VEvent --> 
-        self.window.bind('<<atuElevador>>', lambda e: processaElevador(mqElevador,e) )
-        t = threading.Thread(target=P.exercitaElevador, args=(self.window, mqElevador,),daemon=True)
+        self.window.bind('<<atuElevador>>', lambda e: processaElevador(P.fila, e) )
+        t = threading.Thread(target=P.exercitaElevador, args=(),daemon=True)
         t.start()
         self.window.mainloop()
+        
 
 if __name__ == '__main__':
+    format = "%(asctime)s: %(message)s"
+    logging.basicConfig(format=format, level=logging.INFO,
+                        datefmt="%H:%M:%S")
 
     elev = 1
     andares = 5
 
     for I in [ 1 ]:
-        mqElevador = queue.Queue()
         t = threading.Thread(
             target=interfacePredio,
-            args=(mqElevador, elev+I , andares + I ),
+            args=( elev+I , andares + I ),
             daemon=True
         )
         t.start()
