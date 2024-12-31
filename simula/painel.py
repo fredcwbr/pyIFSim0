@@ -35,10 +35,24 @@ class tk_btx():
             self.mainWin = mainWin
         if parent is None:
            parent = self.parent
-        self.botao = tk.Button( parent, *args, **kwargs )
+        self.botao = tk.Button( parent, *args, command=self.detalhes, **kwargs )
         self.linha[andar] = self.botao
         
         return self.botao
+
+    def reHabilita(self):
+        for I in self.linha:
+            I['state'] = 'active'
+
+    def detalhes(self):
+        for I in self.linha:
+            I['state'] = 'disabled'
+
+        new = tk.Toplevel(self.mainWin)
+        lbl = tk.Label(new,text="Detalhes")
+        lbl.pack()
+        
+        new.protocol("WM_DELETE_WINDOW", lambda: self.reHabilita() or new.destroy() )
 
     def noAndar(self,andar,MSG):
         # tratar a mensagem no andar certo,
