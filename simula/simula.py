@@ -8,6 +8,7 @@ import threading
 import copy
 from queue import Queue, Full, Empty
 import time
+import json
 
 from enum import Enum
 
@@ -42,16 +43,33 @@ Cadastros = Nomes()
 
 
 class eTIPOS(Enum):
-    CIDADE = 0,
-    BAIRRO = 1,
-    PREDIO = 2,
-    ANDAR  = 3,
-    PRACA  = 4,
-    RUA    = 5,
-    PESSOA = 6,
-    CASA   = 7,
-    ELEVADOR = 8,
+    CIDADE = 0
+    BAIRRO = 1
+    PREDIO = 2
+    ANDAR  = 3
+    PRACA  = 4
+    RUA    = 5
+    PESSOA = 6
+    CASA   = 7
+    ELEVADOR = 8
     REMOTO = 999
+
+    __strsX__ = [
+        'CIDADE',
+        'BAIRRO',
+        'PREDIO',
+        'ANDAR',
+        'PRACA',
+        'RUA',
+        'PESSOA',
+        'CASA',
+        'ELEVADOR',
+        'REMOTO'
+    ]
+    def  __str__(self):
+        return self.__strsX__[self.value] + ";" + str(self.value)
+
+    
 
 class eDIRECAO(Enum):
     PARADO = 0,
@@ -273,7 +291,6 @@ class cElevador():
         self._thr = threading.Thread( target=self.run, daemon=True )
         self._thr.start()
 
-
     def run(self):
         while True:
             logging.debug("cElevador .. run  .. ")
@@ -397,6 +414,20 @@ class cElevador():
         # Executa este FSM
         logging.info("Executando movimento {}".format(self) )        
         self.estado()
+
+    def estado(self):
+        f = [ x.qsize() for x in self.filaNoElevador ]
+        tt = 0
+        tt = tt + [ Q for Q in f ]
+        return {
+             "totalpsg" : tt,
+             "passageiros": f,
+             "seletores": [ R for R in range( len( self.noPainelIndicador ) ) if self.noPainelIndicador[R].ligado() ],
+             "status": self.estado.__name__,
+             "andar" : self.nivel
+             }
+        
+        
       
     def  __str__(self):
         return 'cElevador Num {} : Ocupantes {}\n\tPainelIndicador {}\n\tEstado: {}\n\tNivel {}\n\tPredio :{}\n '.format(
@@ -431,6 +462,13 @@ class cAndar(cDestino):
         self._thr = threading.Thread(target=self.run, daemon=True  )
         self._thr.start()
 
+    def estado(self):
+        return {
+             "totalSaindo" : self.filaSaindo .qsize(),
+             "totalTrabalhando" : len(self.noAndarOcupado)
+             }
+        
+        
     # Heranca vinda do cDestino .,
     # para permitir o chegou
     @property
@@ -541,7 +579,20 @@ class cPredio( cDestino ):
         for C in self.elevadores:
             logging.debug( C )
 
+    def estado(self):
+        # inventario no predio
+        #
+        dAnd = { "andares" : {} }
+        for I in self.andares:
+            dAnd['andares'][I.nivel] = I.estado()
+        dElv = { "elevadores": {} }
+        for I in self.elevadores:
+            dElv['elevadores'][I.numeroDoElevador] = I.estado()
 
+        P = { str(self.codigo) : { **dAnd, **dElv, 'predio' : {'tipo' : str(self.tipo) , 'nome' : self.nome } } }
+        
+        return( P )
+            
     @property
     def maxAndares(self):
         return self.nAndares
@@ -630,10 +681,11 @@ def testeElevador():
     #
     cp = cPredio( Nomes.Prenome() ,
               eTIPOS.PREDIO ,
-              1,
+              random.randrange(2355327),    # Cd Predio . 
               8,
               nElevadores = 2 
               )
+    print( json.dumps( cp.estado() ) )
     # cp.niveis= [cAndar(0), cAndar(1)]
     # cp.elevadores = [ cElevador( 1 , cp ) ]
     pid,N = Cadastros.Pessoa()
