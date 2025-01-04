@@ -604,16 +604,29 @@ class cPredio( cDestino ):
 
 class cBairro(cDestino):
 
-    def __init__(self, cdCidade):
+    def __init__(self, cdCidade ):
         (cdBairro, nomeBairro) = Nomes.NovoBairro()
-        super().__init__( nomeBairro, eTIPOS.BAIRRO, cPosicaoXY(), cdCidade=cdCidade, cdBairro=cdBairro  )
+        super().__init__( nomeBairro,
+                          eTIPOS.BAIRRO,
+                          cdBairro,
+                          numNiveis = 1,
+                          posicao = cPosicaoXY()
+                           )
+        # 
+        self.cdCidade=cdCidade  
         self.Predios = []
         
 
     def novoPredio(self, andares = 6):
         elev = (andares % 4) + 2
-        self.Predios.append( cPredio( Nomes.Prenome() , eTIPOS.PREDIO , andares, cdCidade = 0, cdBairro = 0 , nivel = 0 , 
-                                      nElevadores = elev) )
+        self.Predios.append( cPredio( Nomes.Pessoa(),
+                                      eTIPOS.PREDIO ,
+                                      random.randrange(5347587),
+                                      andares,
+                                      cdBairro = self.codigo,
+                                      cdCidade = self.cdCidade
+                                      )
+                             )
     
     def incluiPredio(self, predio):
         self.Predios.append(predio )
@@ -627,20 +640,20 @@ def testeMundoVirtual():
     
     pessoasX = []
     # Gera mundo virtual .,
-    NBAIRROSX = 1
+    NBAIRROSX = 3
     (cdCidade, nmCidade) = Nomes.NovaCidade()
     logging.info("Cidade {} :: {}".format(cdCidade,nmCidade) )
     #
     bairros = [  cBairro(cdCidade) for N in range( NBAIRROSX )  ]
     for B in bairros:
-        for P in [1]: # range ( random.randrange( 3, 10 ) ):
+        for P in range( random.randrange( 2, 10 ) ):
              B.novoPredio()
     
-        for px in [1]: # range( 1, 20 ):
+        for px in range( 1, 10 ):
             pid,N = Cadastros.Pessoa()
             s =  cPessoa( pid,N , cDestino("casa",eTIPOS.CASA) , cDestino("casa",eTIPOS.CASA), cdCidade=cdCidade )
             pid,N = Cadastros.Pessoa()
-            pessoasX.append( cPessoa(  pid,N, cDestino("casa",eTIPOS.CASA) , cDestino("casa",eTIPOS.CASA) , cdBairro=B.cdBairro, cdCidade=cdCidade )  )
+            pessoasX.append( cPessoa(  pid,N, cDestino("casa",eTIPOS.CASA) , cDestino("casa",eTIPOS.CASA) , cdBairro=B.codigo, cdCidade=cdCidade )  )
 
         # logging.info( "Pessoas: {} :: {}".format( len(pessoasX) , [ str(P) for P in pessoasX ] ) )
                     
@@ -706,6 +719,7 @@ if __name__ == "__main__":
 
 
     # testeDestino()
-    testeElevador()
+    # testeElevador()
+    testeMundoVirtual()
     # time.sleep(20)
     
