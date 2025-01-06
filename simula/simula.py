@@ -1,4 +1,4 @@
-
+ 
 
 import concurrent.futures
 import logging
@@ -155,6 +155,13 @@ class cIdentidade(cPosicaoXY):
                 self.posicao
              )
 
+    def __eq__(self, other):
+        return self.__codigo == other.__codigo
+            # estamos na mesma identidade,        
+
+    def __ne__(self, other):        
+        return self.__codigo == other.__codigo
+
     @property
     def codigo(self):
         return self.__codigo
@@ -171,7 +178,7 @@ class cDestino( cIdentidade ) :
         self.__Nnivel = kwargs.get('numNiveis' , None)
 
     def chegou(self, Trgt ):
-        return self.posicao == Trgt.posicao and self.nivel == Trgt.nivel
+        return self == Trgt and self.nivel == Trgt.nivel
         
     @property
     def niveis(self):
@@ -205,19 +212,46 @@ class cPessoa( cIdentidade ):
         self.predioCasa = dfltCasa
         self.predioDestino = dfltDest
         self.emTransito = False
-        self.meuDestino = 0
-        self.pxDtny = [ 0 ]
+        self.meuDestino = None   # Um destino 
+        self.pxDtny = []         # Minha agenda ...  
         logging.debug("Iniciando pessoa {}".format(nome))
         self.ipxGenDstny = self.pxGenDstny()
 
     def pxGenDstny(self):
-        for X in self.pxDtny:
-            yield X
-        return 0
+        while True:
+            if self == self.predioCasa:
+                # veja quanto tempo dorme, e produz nova agenda.
+                #
+                pass
+            try:
+                X = self.pxDtny.pop(0)
+                logging.info("Indo para {}".format(X))
+                yield X
+            except IndexError:
+                # Acabou a agenda. .. voltarpara casa
+                pass
+            logging.info("Voltando para casa")
+            yield self.predioCasa
+
+    def peekPxDsty(self):
+        try:
+            return self.pxDtny[0] == self.meuDestino
+        except IndexError:
+            return False
 
     def proximoDestino(self):
         #
-        return next(self.ipxGenDstny)
+        logging.debug("Calculando proximo destino: {}".format(self.meuDestino) )
+        if self.peekPxDsty or self.meuDestino.nivel == 0:
+            # estamos no mesmo predio, apenas mudamos de andar.,
+            # ou ja estamos no saguao .,. podemos ir a qualquer lugar
+            return next(self.ipxGenDstny)
+        else:
+            logging.debug("Saindo para o saguao : {}".format(self.meuDestino) )
+            self.meuDestino.nivel = 0
+            # vai para o terreo/saguao
+            return self.meuDestino
+            
     
     def vouSair( self ):
         logging.info("{} Vou sair para {}".format(self, self.meuDestino ) )
@@ -238,10 +272,12 @@ class cPessoa( cIdentidade ):
     def p_id(self):
         return self.codigo
 
-    def destinos(self, predio, niveis):
-        self.pxDtny = [ *niveis, 0 ]
+    def agenda(self, destinos ):
+        self.pxDtny = [ *destinos ]
         self.meuDestino = self.proximoDestino()
-        predio.entra(self)
+        logging.info("prox Destino da agenda: {}".format(self.meuDestino) )
+        #
+        self.meuDestino.entra(self)
         # 
     
 
@@ -599,7 +635,8 @@ class cPredio( cDestino ):
     
     def entra(self,P):
             logging.info("predio {} Entrando {} para nivel {}".format(self, P,P.meuDestino) ) 
-            self.andares[0].entra( P )        
+            self.andares[0].entra( P )
+            #
 
 
 class cBairro(cDestino):
@@ -629,6 +666,7 @@ class cBairro(cDestino):
                              )
     
     def incluiPredio(self, predio):
+        
         self.Predios.append(predio )
         
 
@@ -636,30 +674,70 @@ class cBairro(cDestino):
     
 
 
-def testeMundoVirtual():
-    
-    pessoasX = []
-    # Gera mundo virtual .,
-    NBAIRROSX = 3
-    (cdCidade, nmCidade) = Nomes.NovaCidade()
-    logging.info("Cidade {} :: {}".format(cdCidade,nmCidade) )
-    #
-    bairros = [  cBairro(cdCidade) for N in range( NBAIRROSX )  ]
-    for B in bairros:
-        for P in range( random.randrange( 2, 10 ) ):
-             B.novoPredio()
-    
-        for px in range( 1, 10 ):
-            pid,N = Cadastros.Pessoa()
-            s =  cPessoa( pid,N , cDestino("casa",eTIPOS.CASA) , cDestino("casa",eTIPOS.CASA), cdCidade=cdCidade )
-            pid,N = Cadastros.Pessoa()
-            pessoasX.append( cPessoa(  pid,N, cDestino("casa",eTIPOS.CASA) , cDestino("casa",eTIPOS.CASA) , cdBairro=B.codigo, cdCidade=cdCidade )  )
+class MundoVirtual():
 
-        # logging.info( "Pessoas: {} :: {}".format( len(pessoasX) , [ str(P) for P in pessoasX ] ) )
-                    
+    def __init__(self, cidades, bairros, predios, pessoas ):
+        self.cidades = cidades
+        self.bairros = bairros
+        self.predios = predios
+        self.pessoas = pessoas
+
+    @classmethod
+    def criaPessoas(self,  nPessoas = 1 ):
+        pessoas = []
+        for X in range(1,nPessoas ):
+            pid,N = Cadastros.Pessoa()
+            pessoas.append( cPessoa( pid,
+                                 N,
+                                 cDestino("casa",eTIPOS.CASA) ,
+                                 cDestino("casa",eTIPOS.CASA)
+                                )
+                        )
+        return pessoas
+
+
+    def movePessoasAleatorio(self, nPessoas ):
+        pass
     
-    #for px in range(1,10):
-    #    bairros[random.randrange(0,len(bairros))].incluiPredio( cPredio( "Predio {}".format(px) , eTIPOS.PREDIO , int(random.random() * 10) ) ) 
+
+    @classmethod
+    def criaCidades(self, nCidades = 1 , rnd = True ):
+        R = random.randrange( 1, nCidades ) if rnd else nCidades
+        cidades = [ Nomes.NovaCidade() for N in range(R) ]
+        return cidades
+
+    @classmethod        
+    def criaBairros(self, cdCidade, nBairros = 10, rnd = True ):
+        R = random.randrange( 1, nBairros ) if rnd else nBairros
+        bairros = [  cBairro(cdCidade) for N in range( R )  ]
+        return bairros
+
+    @classmethod
+    def criaPredios(self, cdCidade, cdBairro, nPredios = 10, rnd = True ):
+        R = [ random.randrange( 1, nPredios ) if rnd else nPredios ]
+        predios = [ cPredio( "Predio {}".format(px) , eTIPOS.PREDIO , int(random.random() * 10) ) ]
+          
+        return predios
+        
+        
+
+
+    
+
+
+def testeMundoVirtual():
+
+    NBAIRROSX = 3
+    NCIDADES = 1
+
+    # logging.info("Cidade {} :: {}".format(cdCidade,nmCidade) )
+    #
+
+    mV = MundoVirtual( MundoVirtual.criaCidades,
+                       MundoVirtual.criaBairros,
+                       MundoVirtual.criaPredios, 
+                       MundoVirtual.criaPessoas )
+    
 
 class cP(cDestino):
     def __init__(self,nome,tipo,cd,*args,nivel=0,**kwargs):
@@ -706,8 +784,10 @@ def testeElevador():
     # Entra sempre no nivel 0.,
     # sai pelo nivel 0
     #
-    # pxDtny 
-    s.destinos( cp, [ random.randrange(1,cp.maxAndares) for N in range(4) ] )
+    # pxDtny
+    # entrar em um predio, .. para um andar.,
+    #
+    s.agenda( [ cp.andares[ random.randrange(1,cp.maxAndares) ] for N in range(4) ] )
     
     time.sleep(10)
 
@@ -719,7 +799,7 @@ if __name__ == "__main__":
 
 
     # testeDestino()
-    # testeElevador()
-    testeMundoVirtual()
+    testeElevador()
+    # testeMundoVirtual()
     # time.sleep(20)
     
