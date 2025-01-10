@@ -81,26 +81,41 @@ class eDIRECAO(Enum):
     def  __str__(self):
         return __strsX__[self] 
 
-class cPosicaoXY:
-    def __init__(self, *args):
-        if len(args) < 2 :
-            self.xlen = random.randrange(0,10)
-            self.ylen = random.randrange(0,10)
-        else:
-            (xlen, ylen) = args
-            self.xlen = xlen
-            self.ylen = ylen
+class cPosicaoXYZ:
+    def __init__(self, x = random.randrange(0,10), y = random.randrange(0,10), z = 0 ):
+        logging.info("xyz -> {}, {}, {}".format( x,y,z ) )
+        self.xlen = x
+        self.ylen = y
+        self.zlen = z
 
     @property        
     def posicao(self):
-        return (self.xlen, self.ylen)
+        return (self.xlen, self.ylen, self.zlen)
         
     def distancia(self, x,y):
-        # Retorna a distancia polar equivalente entre os pontos A,B 
+        # Retorna a distancia polar equivalente entre os pontos A,B (desconsidera nivel, .)
         return sqr( (self.xlen - x)**2 + (self.ylen - y)**2 )
 
+    @property
+    def nivel(self):
+        return self.zlen
+
+
+    def __eq__(self, other):
+        return self.xlen == other.xlen and self.ylen == other.ylen
+            # estamos na mesma identidade,        
+
+    def __ne__(self, other):        
+        return self.xlen != other._xlen or self.ylen != other._ylen
+
+    @property
+    def mesmoNivel(self, other):
+        return self.zlen == other.zlen
+
+
+        
     def __str__(self):
-        return 'x {} : y {}'.format(self.xlen, self.ylen)
+        return 'x {} : y {} : nivel {}'.format(self.xlen, self.ylen, self.zlen)
     
 
 
@@ -137,12 +152,12 @@ class BOTAO:
         return "{}".format( str(self.__estado__) )
 
 
-class cIdentidade(cPosicaoXY):
+class cIdentidade(cPosicaoXYZ):
     
     def __init__( self, nome, tipo, cd=0 , **kwargs ):
         if 'posicao' not in kwargs:
             kwargs['posicao'] = ( random.randrange(0,40),random.randrange(0,40) )
-        super().__init__( kwargs['posicao'] )
+        super().__init__( *kwargs['posicao'] )
         self.nome = nome
         self.tipo = tipo
         self.__codigo = cd
@@ -155,13 +170,6 @@ class cIdentidade(cPosicaoXY):
                 self.posicao
              )
 
-    def __eq__(self, other):
-        return self.__codigo == other.__codigo
-            # estamos na mesma identidade,        
-
-    def __ne__(self, other):        
-        return self.__codigo == other.__codigo
-
     @property
     def codigo(self):
         return self.__codigo
@@ -170,6 +178,7 @@ class cIdentidade(cPosicaoXY):
 class cDestino( cIdentidade ) :
 
     def __init__(self, *args, **kwargs):
+        
         super().__init__( *args, **kwargs)
         self.tempoInterTransito = kwargs.get('tempoInterTransito' , 0)
         self.penalidadeTransitoNivel = kwargs.get('penalidadeTransitoNivel' , 0)
@@ -178,7 +187,11 @@ class cDestino( cIdentidade ) :
         self.__Nnivel = kwargs.get('numNiveis' , None)
 
     def chegou(self, Trgt ):
-        return self == Trgt and self.nivel == Trgt.nivel
+        return self == Trgt and self.mesmoNivel(Trgt)
+
+    @property
+    def multiplosAndares(self):
+        return self.__Nnivel is not None
         
     @property
     def niveis(self):
@@ -186,14 +199,13 @@ class cDestino( cIdentidade ) :
     
     @niveis.setter
     def niveis(self, nivel):
-        self.__Nnivel = nivel
+        raise NotImplementedError
 
     @property
     def nivel(self):
-        return 0
+        return self.zlen
 
     @nivel.setter
-    # @abstractmethod
     def nivel(self, nivel):
         raise NotImplementedError
      
@@ -479,14 +491,24 @@ class cElevador():
 class cAndar(cDestino):
     
     def __init__( self, numero , *args, **kwargs ):
-        super().__init__( "E{}".format(numero), eTIPOS.ELEVADOR , "E{}".format(numero), **kwargs )
+        xW = kwargs.get("posicao", ( None, None , numero ))
+        if "posicao" not in kwargs:
+            kwargs["posicao"] = xW
+        else:
+            (x,y,z) = kwargs["posicao"]
+            kwargs["posicao"] = (x,y,numero)
+
+        super().__init__( "E{}".format(numero),
+                          eTIPOS.ELEVADOR ,
+                          "E{}".format(numero),
+                           **kwargs
+                        )
         # define um andar do predio
         # andar pode conter pessoas
         # e tem os botoes de sinalizacao dos elevadores
         #
         logging.debug("Andar sendo criado")
         self._lock = threading.Lock()
-        self.nivel = numero
         self.subir = BOTAO()
         self.descer = BOTAO()
 
@@ -503,17 +525,16 @@ class cAndar(cDestino):
              "totalSaindo" : self.filaSaindo .qsize(),
              "totalTrabalhando" : len(self.noAndarOcupado)
              }
-        
-        
-    # Heranca vinda do cDestino .,
-    # para permitir o chegou
-    @property
-    def nivel(self):
-        return self.__nivel
 
-    @nivel.setter
-    def nivel(self, nivelx):
-        self.__nivel = nivelx
+
+    ##    def __eq__(self, other):
+    ##        return self.__codigo == other.__codigo
+    ##            # estamos na mesma identidade,        
+    ##
+    ##    def __ne__(self, other):        
+    ##        return self.__codigo == other.__codigo
+    ##        
+        
 
     def entra(self,P):
         logging.info("{} Entrando no andar {} para nivel {} , FIn {} ; FOut {}; UP{} , DW{}".format(
@@ -526,7 +547,7 @@ class cAndar(cDestino):
                 self.descer.ligado
                 )
             ) 
-        if  P.meuDestino == self.nivel:
+        if  P.meuDestino == self:
             logging.info("{} Entrando no nivel destino {}".format(P, self.nivel) )
             self.filaEntrando.put( P )
         else:
