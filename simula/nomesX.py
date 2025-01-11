@@ -44,6 +44,12 @@ class Nomes:
     def Pessoa(cls):
         return  next(cls.iPessoa)
 
+
+    @classmethod
+    def Predio(cls):
+        w = next(cls.iPessoa)
+        return  ( w[0], "Ed. {}".format(w[1]) )
+    
     @classmethod
     def xPrenome(self):
         while(1):        
