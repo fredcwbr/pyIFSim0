@@ -13,7 +13,7 @@ import json
 from enum import Enum
 
 from  nomesX import Nomes
-
+import  udpdiscovery as uD
 
 class listEx(list):
     
@@ -860,7 +860,8 @@ if __name__ == "__main__":
     logging.basicConfig(format=format, level=logging.DEBUG,
                         datefmt="%H:%M:%S")
 
-
+    xuD = uD.udpDiscover( beacon=True , port=9093, ttl=5, bId='UUIDXXX' ) # rcvCallBack = callBackTeste )
+    
     # testeDestino()
     testeElevador()
     # testeMundoVirtual()

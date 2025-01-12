@@ -22,7 +22,7 @@ class udpDiscover:
     _instance = None
     
     def __new__(cls, *args, **kwargs):
-        cx = super().__new__(cls,*args, **kwargs)
+        cx = super().__new__(cls)
         if cx._instance is None:
            cx._instance = True
            cx.interfacesMaquina = interfacesMaquina
@@ -38,11 +38,17 @@ class udpDiscover:
            cx.skts = cnxS           
         return cx
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, rcvCallBack=None, beacon=False, port=9090, ttl=10, bId=None ):
         self.cntSeq = 1
         self.sndContinua = True
         self.rcvContinua = True
-        self.rcvCallBack = None
+        self.rcvCallBack = rcvCallBack
+        self.beacon=beacon
+        self.port=port
+        self.ttl=ttl
+        self.bId=bId
+        self.beaconStart( self.port  )
+        
 
     def sender( self, port, MSG ):
         # MSG é um dict que sera enviado como JSON  .,
@@ -52,7 +58,7 @@ class udpDiscover:
         for s,ip in self.skts:
             # print( ip.network.broadcast_address )
             #s.sendto(data.encode('utf-8'), ('<broadcast>', PORT))
-            s.sendto(json.dumps(MSG).encode('utf-8'), (format(ip.network.broadcast_address), PORT))
+            s.sendto(json.dumps(MSG).encode('utf-8'), (format(ip.network.broadcast_address), port))
         print( "sent service announcement \n"  )
         
 
@@ -77,19 +83,20 @@ class udpDiscover:
         )
         tr.start()
 
-    def testeSnd(self):
+    def beaconSnd(self, PORT, MSG ):
         while self.sndContinua :
-            self.sender( PORT , {'Id': "Msg Teste" } )
-            sleep(5)
+            self.sender( PORT , MSG )
+            sleep(self.ttl)
 
         
-    def sendStart( self, PORT ):
-        ts = threading.Thread(
-            target=self.testeSnd,
-            args=(),
-            daemon=True
-        )
-        ts.start()
+    def beaconStart( self, PORT ):
+        if self.beacon:
+            ts = threading.Thread(
+                target=self.beaconSnd,
+                args=( PORT, {'Id': self.bId } ),
+                daemon=True
+            )
+            ts.start()
 
     def rcv_stop(self):
         self.receiver.continua = False
@@ -101,6 +108,7 @@ class udpDiscover:
 
 def callBackTeste( dados, origem ):
 
+
     d = json.loads( dados.decode('utf-8') )
     print( " Callback :: " , d, origem )
 
@@ -110,16 +118,13 @@ if __name__ == '__main__':
 
     PORT = 9093
 
-    uS = udpDiscover()
-
+    uS = udpDiscover(  beacon=True, rcvCallBack = callBackTeste )
         
-    uS.rcvStart( PORT )
-    uS.rcvCallBack = callBackTeste
-    uS.sendStart( PORT )
+    uS.rcvStart( 9093 )
    
     sleep(15)
     print( "Terminando ..." ) 
-    uS.rcvContinua.stop()
+    uS.rcvContinua = False
     uS.sndContinua = False
 
 

@@ -152,7 +152,7 @@ class interfacePredio:
 
 if __name__ == '__main__':
     format = "%(asctime)s: %(message)s"
-    logging.basicConfig(format=format, level=logging.INFO,
+    logging.basicConfig(format=format, level=logging.ERROR,
                         datefmt="%H:%M:%S")
 
     elev = 1
